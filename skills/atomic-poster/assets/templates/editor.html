@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>封面海报编辑器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #1a1a2e;
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* 左侧画布区域 */
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: #16213e;
+        }
+
+        .canvas-wrapper {
+            background: #0f0f23;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+
+        #poster-canvas {
+            border: 2px solid #333;
+            border-radius: 4px;
+        }
+
+        /* 右侧控制面板 */
+        .control-panel {
+            width: 320px;
+            background: #0f3460;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .panel-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e94560;
+        }
+
+        .section {
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e94560;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* 图层列表 */
+        .layer-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .layer-item {
+            background: rgba(255,255,255,0.1);
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .layer-item:hover {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .layer-item.active {
+            background: #e94560;
+        }
+
+        .layer-name {
+            font-size: 14px;
+        }
+
+        .layer-type {
+            font-size: 11px;
+            opacity: 0.7;
+            background: rgba(0,0,0,0.2);
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        /* 属性编辑 */
+        .property-group {
+            margin-bottom: 16px;
+        }
+
+        .property-label {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .property-input {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .property-input:focus {
+            outline: 2px solid #e94560;
+            background: rgba(255,255,255,0.15);
+        }
+
+        .property-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .property-row .property-group {
+            flex: 1;
+        }
+
+        /* 滑块 */
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255,255,255,0.2);
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #e94560;
+            cursor: pointer;
+        }
+
+        .slider-value {
+            min-width: 50px;
+            text-align: right;
+            font-size: 14px;
+        }
+
+        /* 按钮 */
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: #e94560;
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: #d63850;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* 主题选择 */
+        .theme-selector {
+            display: flex;
+            gap: 10px;
+        }
+
+        .theme-option {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: center;
+            font-size: 12px;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .theme-option.active {
+            border-color: #fff;
+        }
+
+        .theme-ai {
+            background: rgb(0, 130, 127);
+        }
+
+        .theme-build {
+            background: rgb(220, 0, 0);
+        }
+
+        .theme-tech {
+            background: rgb(255, 135, 0);
+        }
+
+        /* 方向切换 */
+        .orientation-toggle {
+            display: flex;
+            gap: 10px;
+        }
+
+        .orientation-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .orientation-btn.active {
+            background: #e94560;
+        }
+
+        /* 提示信息 */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        /* 快捷键提示 */
+        .shortcuts {
+            font-size: 12px;
+            color: #888;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .shortcut-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .shortcut-key {
+            background: rgba(255,255,255,0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="canvas-area">
+            <div class="canvas-wrapper">
+                <canvas id="poster-canvas"></canvas>
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <h1 class="panel-title">封面编辑器</h1>
+
+            <!-- 主题选择 -->
+            <div class="section">
+                <div class="section-title">主题配色</div>
+                <div class="theme-selector">
+                    <div class="theme-option theme-ai" data-theme="ai_course">AI课程</div>
+                    <div class="theme-option theme-build" data-theme="build_public">创业</div>
+                    <div class="theme-option theme-tech" data-theme="tech_explain">技术</div>
+                </div>
+            </div>
+
+            <!-- 方向切换 -->
+            <div class="section">
+                <div class="section-title">海报方向</div>
+                <div class="orientation-toggle">
+                    <button class="orientation-btn" data-orientation="vertical">竖版 9:16</button>
+                    <button class="orientation-btn" data-orientation="horizontal">横版 16:9</button>
+                </div>
+            </div>
+
+            <!-- 图层列表 -->
+            <div class="section">
+                <div class="section-title">图层</div>
+                <div class="layer-list" id="layer-list"></div>
+            </div>
+
+            <!-- 属性编辑 -->
+            <div class="section" id="property-editor" style="display: none;">
+                <div class="section-title">属性</div>
+
+                <div id="text-properties">
+                    <div class="property-group">
+                        <label class="property-label">文本内容</label>
+                        <input type="text" class="property-input" id="prop-text">
+                    </div>
+
+                    <div class="property-row">
+                        <div class="property-group">
+                            <label class="property-label">X 坐标</label>
+                            <input type="number" class="property-input" id="prop-x">
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Y 坐标</label>
+                            <input type="number" class="property-input" id="prop-y">
+                        </div>
+                    </div>
+
+                    <div class="property-group">
+                        <label class="property-label">字号</label>
+                        <div class="slider-container">
+                            <input type="range" class="slider" id="prop-fontsize" min="20" max="200" value="48">
+                            <span class="slider-value" id="fontsize-value">48px</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="image-properties" style="display: none;">
+                    <div class="property-row">
+                        <div class="property-group">
+                            <label class="property-label">X 坐标</label>
+                            <input type="number" class="property-input" id="prop-img-x">
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Y 坐标</label>
+                            <input type="number" class="property-input" id="prop-img-y">
+                        </div>
+                    </div>
+
+                    <div class="property-group">
+                        <label class="property-label">缩放</label>
+                        <div class="slider-container">
+                            <input type="range" class="slider" id="prop-scale" min="10" max="200" value="100">
+                            <span class="slider-value" id="scale-value">100%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 导出按钮 -->
+            <div class="section">
+                <button class="btn btn-primary" id="btn-export">导出海报</button>
+                <button class="btn btn-secondary" id="btn-reset">重置布局</button>
+            </div>
+
+            <!-- 快捷键 -->
+            <div class="shortcuts">
+                <div class="section-title" style="font-size: 11px;">快捷键</div>
+                <div class="shortcut-item">
+                    <span>移动图层</span>
+                    <span class="shortcut-key">拖拽</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>微调位置</span>
+                    <span class="shortcut-key">方向键</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>删除选中</span>
+                    <span class="shortcut-key">Delete</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // 全局变量
+        let canvas;
+        let config = {};
+        let canvasScale = 1;
+        let selectedObject = null;
+
+        const THEMES = {
+            'ai_course': 'rgb(0, 130, 127)',
+            'build_public': 'rgb(220, 0, 0)',
+            'tech_explain': 'rgb(255, 135, 0)'
+        };
+
+        // 初始化
+        async function init() {
+            // 获取配置
+            const response = await fetch('/api/config');
+            config = await response.json();
+
+            // 初始化主题选择
+            document.querySelectorAll('.theme-option').forEach(el => {
+                if (el.dataset.theme === config.theme) {
+                    el.classList.add('active');
+                }
+                el.addEventListener('click', () => changeTheme(el.dataset.theme));
+            });
+
+            // 初始化方向选择
+            document.querySelectorAll('.orientation-btn').forEach(el => {
+                if (el.dataset.orientation === config.orientation) {
+                    el.classList.add('active');
+                }
+                el.addEventListener('click', () => changeOrientation(el.dataset.orientation));
+            });
+
+            // 初始化画布
+            initCanvas();
+
+            // 绑定事件
+            bindEvents();
+        }
+
+        function initCanvas() {
+            const maxWidth = window.innerWidth - 400;
+            const maxHeight = window.innerHeight - 100;
+
+            // 计算缩放比例
+            const scaleW = maxWidth / config.width;
+            const scaleH = maxHeight / config.height;
+            canvasScale = Math.min(scaleW, scaleH, 0.5);
+
+            const displayWidth = config.width * canvasScale;
+            const displayHeight = config.height * canvasScale;
+
+            // 创建画布
+            canvas = new fabric.Canvas('poster-canvas', {
+                width: displayWidth,
+                height: displayHeight,
+                backgroundColor: THEMES[config.theme] || THEMES['ai_course']
+            });
+
+            // 渲染图层
+            renderLayers();
+
+            // 选择事件
+            canvas.on('selection:created', handleSelection);
+            canvas.on('selection:updated', handleSelection);
+            canvas.on('selection:cleared', () => {
+                selectedObject = null;
+                document.getElementById('property-editor').style.display = 'none';
+                document.querySelectorAll('.layer-item').forEach(el => el.classList.remove('active'));
+            });
+
+            // 对象修改事件
+            canvas.on('object:modified', handleObjectModified);
+            canvas.on('object:moving', handleObjectMoving);
+            canvas.on('object:scaling', handleObjectScaling);
+        }
+
+        async function renderLayers() {
+            canvas.clear();
+            canvas.setBackgroundColor(THEMES[config.theme], canvas.renderAll.bind(canvas));
+
+            const layerList = document.getElementById('layer-list');
+            layerList.innerHTML = '';
+
+            // 加载人像图片
+            const personResponse = await fetch('/api/person-image');
+            const personData = await personResponse.json();
+
+            for (const layer of config.layers) {
+                if (layer.visible === false) continue;
+
+                let fabricObj = null;
+
+                if (layer.type === 'text') {
+                    fabricObj = new fabric.Text(layer.text, {
+                        left: layer.x * canvasScale,
+                        top: layer.y * canvasScale,
+                        fontSize: layer.fontSize * canvasScale,
+                        fill: '#ffffff',
+                        fontFamily: 'Noto Sans SC, sans-serif',
+                        fontWeight: layer.fontWeight === 'bold' || layer.fontWeight === 'number' ? 'bold' : 'normal',
+                        originX: layer.align === 'center' ? 'center' : 'left'
+                    });
+                } else if (layer.type === 'image' && personData.base64) {
+                    const img = await loadImage('data:image/png;base64,' + personData.base64);
+                    const scale = layer.scale * canvasScale;
+                    fabricObj = new fabric.Image(img, {
+                        left: layer.x * canvasScale,
+                        top: layer.y * canvasScale,
+                        scaleX: scale,
+                        scaleY: scale
+                    });
+                } else if (layer.type === 'line') {
+                    fabricObj = new fabric.Line([
+                        layer.x1 * canvasScale,
+                        layer.y1 * canvasScale,
+                        layer.x2 * canvasScale,
+                        layer.y2 * canvasScale
+                    ], {
+                        stroke: '#ffffff',
+                        strokeWidth: layer.lineWidth * canvasScale,
+                        selectable: true
+                    });
+                }
+
+                if (fabricObj) {
+                    fabricObj.layerId = layer.id;
+                    fabricObj.layerData = layer;
+                    canvas.add(fabricObj);
+
+                    // 添加图层列表项
+                    const listItem = document.createElement('div');
+                    listItem.className = 'layer-item';
+                    listItem.dataset.layerId = layer.id;
+                    listItem.innerHTML = `
+                        <span class="layer-name">${layer.name}</span>
+                        <span class="layer-type">${layer.type}</span>
+                    `;
+                    listItem.addEventListener('click', () => selectLayer(layer.id));
+                    layerList.appendChild(listItem);
+                }
+            }
+
+            canvas.renderAll();
+        }
+
+        function loadImage(src) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.src = src;
+            });
+        }
+
+        function selectLayer(layerId) {
+            const objects = canvas.getObjects();
+            const obj = objects.find(o => o.layerId === layerId);
+            if (obj) {
+                canvas.setActiveObject(obj);
+                canvas.renderAll();
+                handleSelection({ selected: [obj] });
+            }
+        }
+
+        function handleSelection(e) {
+            if (!e.selected || e.selected.length === 0) return;
+
+            selectedObject = e.selected[0];
+            const layer = selectedObject.layerData;
+
+            // 高亮图层列表
+            document.querySelectorAll('.layer-item').forEach(el => {
+                el.classList.toggle('active', el.dataset.layerId === layer.id);
+            });
+
+            // 显示属性编辑器
+            const editor = document.getElementById('property-editor');
+            editor.style.display = 'block';
+
+            const textProps = document.getElementById('text-properties');
+            const imageProps = document.getElementById('image-properties');
+
+            if (layer.type === 'text') {
+                textProps.style.display = 'block';
+                imageProps.style.display = 'none';
+
+                document.getElementById('prop-text').value = layer.text;
+                document.getElementById('prop-x').value = Math.round(layer.x);
+                document.getElementById('prop-y').value = Math.round(layer.y);
+                document.getElementById('prop-fontsize').value = layer.fontSize;
+                document.getElementById('fontsize-value').textContent = layer.fontSize + 'px';
+            } else if (layer.type === 'image') {
+                textProps.style.display = 'none';
+                imageProps.style.display = 'block';
+
+                document.getElementById('prop-img-x').value = Math.round(layer.x);
+                document.getElementById('prop-img-y').value = Math.round(layer.y);
+                document.getElementById('prop-scale').value = Math.round(layer.scale * 100);
+                document.getElementById('scale-value').textContent = Math.round(layer.scale * 100) + '%';
+            } else {
+                textProps.style.display = 'none';
+                imageProps.style.display = 'none';
+            }
+        }
+
+        function handleObjectModified(e) {
+            if (!e.target || !e.target.layerData) return;
+
+            const obj = e.target;
+            const layer = obj.layerData;
+
+            // 更新图层数据
+            layer.x = Math.round(obj.left / canvasScale);
+            layer.y = Math.round(obj.top / canvasScale);
+
+            if (layer.type === 'image') {
+                layer.scale = obj.scaleX / canvasScale;
+            }
+
+            // 更新属性面板
+            handleSelection({ selected: [obj] });
+
+            // 同步到服务器
+            syncConfig();
+        }
+
+        function handleObjectMoving(e) {
+            if (!e.target || !e.target.layerData) return;
+
+            const obj = e.target;
+            const layer = obj.layerData;
+
+            layer.x = Math.round(obj.left / canvasScale);
+            layer.y = Math.round(obj.top / canvasScale);
+
+            // 实时更新坐标显示
+            if (layer.type === 'text') {
+                document.getElementById('prop-x').value = layer.x;
+                document.getElementById('prop-y').value = layer.y;
+            } else if (layer.type === 'image') {
+                document.getElementById('prop-img-x').value = layer.x;
+                document.getElementById('prop-img-y').value = layer.y;
+            }
+        }
+
+        function handleObjectScaling(e) {
+            if (!e.target || !e.target.layerData) return;
+
+            const obj = e.target;
+            const layer = obj.layerData;
+
+            if (layer.type === 'image') {
+                layer.scale = obj.scaleX / canvasScale;
+                document.getElementById('prop-scale').value = Math.round(layer.scale * 100);
+                document.getElementById('scale-value').textContent = Math.round(layer.scale * 100) + '%';
+            }
+        }
+
+        function bindEvents() {
+            // 文本属性
+            document.getElementById('prop-text').addEventListener('input', (e) => {
+                if (!selectedObject || selectedObject.layerData.type !== 'text') return;
+                selectedObject.set('text', e.target.value);
+                selectedObject.layerData.text = e.target.value;
+                canvas.renderAll();
+                syncConfig();
+            });
+
+            document.getElementById('prop-x').addEventListener('input', (e) => {
+                if (!selectedObject) return;
+                const x = parseInt(e.target.value) || 0;
+                selectedObject.set('left', x * canvasScale);
+                selectedObject.layerData.x = x;
+                canvas.renderAll();
+                syncConfig();
+            });
+
+            document.getElementById('prop-y').addEventListener('input', (e) => {
+                if (!selectedObject) return;
+                const y = parseInt(e.target.value) || 0;
+                selectedObject.set('top', y * canvasScale);
+                selectedObject.layerData.y = y;
+                canvas.renderAll();
+                syncConfig();
+            });
+
+            document.getElementById('prop-fontsize').addEventListener('input', (e) => {
+                if (!selectedObject || selectedObject.layerData.type !== 'text') return;
+                const size = parseInt(e.target.value);
+                selectedObject.set('fontSize', size * canvasScale);
+                selectedObject.layerData.fontSize = size;
+                document.getElementById('fontsize-value').textContent = size + 'px';
+                canvas.renderAll();
+                syncConfig();
+            });
+
+            // 图片属性
+            document.getElementById('prop-img-x').addEventListener('input', (e) => {
+                if (!selectedObject) return;
+                const x = parseInt(e.target.value) || 0;
+                selectedObject.set('left', x * canvasScale);
+                selectedObject.layerData.x = x;
+                canvas.renderAll();
+                syncConfig();
+            });
+
+            document.getElementById('prop-img-y').addEventListener('input', (e) => {
+                if (!selectedObject) return;
+                const y = parseInt(e.target.value) || 0;
+                selectedObject.set('top', y * canvasScale);
+                selectedObject.layerData.y = y;
+                canvas.renderAll();
+                syncConfig();
+            });
+
+            document.getElementById('prop-scale').addEventListener('input', (e) => {
+                if (!selectedObject || selectedObject.layerData.type !== 'image') return;
+                const scale = parseInt(e.target.value) / 100;
+                selectedObject.set('scaleX', scale * canvasScale);
+                selectedObject.set('scaleY', scale * canvasScale);
+                selectedObject.layerData.scale = scale;
+                document.getElementById('scale-value').textContent = Math.round(scale * 100) + '%';
+                canvas.renderAll();
+                syncConfig();
+            });
+
+            // 导出按钮
+            document.getElementById('btn-export').addEventListener('click', exportPoster);
+
+            // 重置按钮
+            document.getElementById('btn-reset').addEventListener('click', async () => {
+                const response = await fetch('/api/config');
+                config = await response.json();
+                renderLayers();
+                showToast('布局已重置');
+            });
+
+            // 键盘事件
+            document.addEventListener('keydown', (e) => {
+                if (!selectedObject) return;
+
+                const step = e.shiftKey ? 10 : 1;
+                let moved = false;
+
+                switch (e.key) {
+                    case 'ArrowUp':
+                        selectedObject.set('top', selectedObject.top - step * canvasScale);
+                        moved = true;
+                        break;
+                    case 'ArrowDown':
+                        selectedObject.set('top', selectedObject.top + step * canvasScale);
+                        moved = true;
+                        break;
+                    case 'ArrowLeft':
+                        selectedObject.set('left', selectedObject.left - step * canvasScale);
+                        moved = true;
+                        break;
+                    case 'ArrowRight':
+                        selectedObject.set('left', selectedObject.left + step * canvasScale);
+                        moved = true;
+                        break;
+                    case 'Delete':
+                    case 'Backspace':
+                        if (e.target.tagName !== 'INPUT') {
+                            canvas.remove(selectedObject);
+                            selectedObject = null;
+                            document.getElementById('property-editor').style.display = 'none';
+                        }
+                        break;
+                }
+
+                if (moved) {
+                    e.preventDefault();
+                    selectedObject.layerData.x = Math.round(selectedObject.left / canvasScale);
+                    selectedObject.layerData.y = Math.round(selectedObject.top / canvasScale);
+                    canvas.renderAll();
+                    handleSelection({ selected: [selectedObject] });
+                    syncConfig();
+                }
+            });
+        }
+
+        function changeTheme(theme) {
+            config.theme = theme;
+            canvas.setBackgroundColor(THEMES[theme], canvas.renderAll.bind(canvas));
+
+            document.querySelectorAll('.theme-option').forEach(el => {
+                el.classList.toggle('active', el.dataset.theme === theme);
+            });
+
+            syncConfig();
+        }
+
+        async function changeOrientation(orientation) {
+            if (orientation === config.orientation) return;
+
+            // 需要重新加载配置
+            const params = new URLSearchParams({
+                orientation: orientation
+            });
+
+            window.location.href = '/?orientation=' + orientation;
+        }
+
+        async function syncConfig() {
+            await fetch('/api/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    layers: config.layers,
+                    theme: config.theme
+                })
+            });
+        }
+
+        async function exportPoster() {
+            showToast('正在导出...');
+
+            try {
+                const response = await fetch('/api/export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        orientation: config.orientation,
+                        output_path: './output',
+                        layers: config.layers
+                    })
+                });
+
+                const result = await response.json();
+                if (result.status === 'ok') {
+                    showToast('导出成功: ' + result.path);
+                } else {
+                    showToast('导出失败: ' + (result.error || '未知错误'));
+                }
+            } catch (error) {
+                showToast('导出失败: ' + error.message);
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>
